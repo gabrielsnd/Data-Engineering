@@ -34,17 +34,11 @@ monedas_latam = siete.cuadro(
   observado="last"
   )
 
-#Transformación a DataFrame + formateo del indice a fecha
+#Transformación a DataFrame + formateo del index + borra na
 
 df_monedas = pd.DataFrame(monedas_latam)
-df_monedas['fecha'] = df_monedas.index
-df_monedas['fecha'] = pd.to_datetime(df_monedas['fecha'], format='%Y%m%d')
-
-
-# Generar una columna de id automático
-df_monedas['Id'] = pd.Series(range(len(df_monedas)))
-
-#print(df_monedas)
+df_monedas = df_monedas.dropna(subset=['CLP_USD', 'ARS_USD', 'BOL_USD', 'BRL_USD', 'COP_USD', 'PYG_USD', 'PEN_USD', 'VEB_USD', 'MXN_USD', 'CRC_USD'])
+df_monedas.reset_index(inplace=True)
 
 
 # Conexión a Amazon Redshift
@@ -72,20 +66,19 @@ except Exception as e:
 
 with conn.cursor() as cur:
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS gabrielsnd92_coderhouse.FX_LATAM
+        CREATE TABLE IF NOT EXISTS gabrielsnd92_coderhouse.FX_LATAM_v5
         (
-	    id VARCHAR(50) primary key  
-	    , fecha DATE   
-      , CLP_USD DECIMAL(10,4)
-      , ARS_USD DECIMAL(10,4)
-      , BOL_USD DECIMAL(10,4)
-      , BRL_USD DECIMAL(10,4)
-      , COP_USD DECIMAL(10,4)
-      , PYG_USD DECIMAL(10,4)
-      , PEN_USD DECIMAL(10,4)
-      , VEB_USD DECIMAL(10,4)
-      , MXN_USD DECIMAL(10,4)
-      , CRC_USD DECIMAL(10,4)
+            fecha DATE PRIMARY KEY   
+      , CLP_USD FLOAT
+      , ARS_USD FLOAT
+      , BOL_USD FLOAT
+      , BRL_USD FLOAT
+      , COP_USD FLOAT
+      , PYG_USD FLOAT
+      , PEN_USD FLOAT
+      , VEB_USD FLOAT
+      , MXN_USD FLOAT
+      , CRC_USD FLOAT
       )
     """)
     conn.commit()
@@ -97,7 +90,7 @@ with conn.cursor() as cur:
     execute_values(
         cur,
         '''
-        INSERT INTO FX_LATAM (Id, fecha, 
+        INSERT INTO FX_LATAM_v5 (fecha,
         CLP_USD,
         ARS_USD,
         BOL_USD,
