@@ -34,11 +34,12 @@ monedas_latam = siete.cuadro(
   observado="last"
   )
 
-#Transformación a DataFrame + formateo del index + borra na
+#Transformación a DataFrame + formateo del index + borra na + columna de ultima actualización
 
 df_monedas = pd.DataFrame(monedas_latam)
 df_monedas = df_monedas.dropna(subset=['CLP_USD', 'ARS_USD', 'BOL_USD', 'BRL_USD', 'COP_USD', 'PYG_USD', 'PEN_USD', 'VEB_USD', 'MXN_USD', 'CRC_USD'])
 df_monedas.reset_index(inplace=True)
+df_monedas['LAST_UPDATE'] = fecha_hoy
 
 
 # Conexión a Amazon Redshift
@@ -66,7 +67,7 @@ except Exception as e:
 
 with conn.cursor() as cur:
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS gabrielsnd92_coderhouse.FX_LATAM_v5
+        CREATE TABLE IF NOT EXISTS gabrielsnd92_coderhouse.FX_LATAM_v2
         (
             fecha DATE PRIMARY KEY   
       , CLP_USD FLOAT
@@ -79,6 +80,7 @@ with conn.cursor() as cur:
       , VEB_USD FLOAT
       , MXN_USD FLOAT
       , CRC_USD FLOAT
+      , last_update DATE
       )
     """)
     conn.commit()
@@ -87,26 +89,24 @@ with conn.cursor() as cur:
 # Carga de datos en Redshift
 from psycopg2.extras import execute_values
 with conn.cursor() as cur:
-    execute_values(
-        cur,
-        '''
-        INSERT INTO FX_LATAM_v5 (fecha,
-        CLP_USD,
-        ARS_USD,
-        BOL_USD,
-        BRL_USD,
-        COP_USD,
-        PYG_USD,
-        PEN_USD,
-        VEB_USD,
-        MXN_USD,
-        CRC_USD)
-        VALUES %s''',
-        [tuple(row) for row in df_monedas.values],
-        page_size=len(df_monedas)
-    )
-    conn.commit()
+    # Generar la cadena de inserción con los marcadores de posición adecuados
+    query = '''
+    INSERT INTO FX_LATAM_v2 (fecha, 
+    CLP_USD, ARS_USD, BOL_USD, BRL_USD, 
+    COP_USD, PYG_USD, PEN_USD, VEB_USD, MXN_USD, CRC_USD, last_update)
+    VALUES %s
+    '''
 
+    # Obtener los valores de las filas como una lista de tuplas
+    values = [tuple(row) for row in df_monedas.values]
+
+    # Ejecutar la inserción utilizando execute_values
+    try:
+        execute_values(cur, query, values)
+        conn.commit()
+        print("Datos insertados correctamente en Redshift.")
+    except psycopg2.Error as e:
+        print("Error al insertar datos en Redshift:", e)
 
 cur.close()
 conn.close()
